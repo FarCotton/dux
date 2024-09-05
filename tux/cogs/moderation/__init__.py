@@ -82,12 +82,13 @@ class ModerationCogBase(commands.Cog):
             The type of log to send the embed to.
         """
 
-        if ctx.guild:
-            log_channel_id = await self.config.get_log_channel(ctx.guild.id, log_type)
-            if log_channel_id:
-                log_channel = ctx.guild.get_channel(log_channel_id)
-                if isinstance(log_channel, discord.TextChannel):
-                    await log_channel.send(embed=embed)
+        assert ctx.guild
+
+        log_channel_id = await self.config.get_log_channel(ctx.guild.id, log_type)
+        if log_channel_id:
+            log_channel = ctx.guild.get_channel(log_channel_id)
+            if isinstance(log_channel, discord.TextChannel):
+                await log_channel.send(embed=embed)
 
     async def send_dm(
         self,
@@ -151,68 +152,24 @@ class ModerationCogBase(commands.Cog):
             Whether the conditions are met.
         """
 
-        if ctx.guild is None:
-            logger.warning(f"{action.capitalize()} command used outside of a guild context.")
-            return False
+        assert ctx.guild
 
         if user == ctx.author:
-            embed = create_error_embed("You cannot {action} yourself.")
+            embed = create_error_embed(f"You cannot {action} yourself.")
             await ctx.send(embed=embed, ephemeral=True, delete_after=30)
             return False
 
         if isinstance(moderator, discord.Member) and user.top_role >= moderator.top_role:
-            embed = create_error_embed("You cannot {action} a user with a higher or equal role.")
+            embed = create_error_embed(f"You cannot {action} a user with a higher or equal role.")
             await ctx.send(embed=embed, ephemeral=True, delete_after=30)
             return False
 
         if user == ctx.guild.owner:
-            embed = create_error_embed("You cannot {action} the server owner.")
+            embed = create_error_embed(f"You cannot {action} the server owner.")
             await ctx.send(embed=embed, ephemeral=True, delete_after=30)
             return False
 
         return True
-
-    async def check_jail_conditions(
-        self,
-        ctx: commands.Context[Tux],
-        user: discord.Member,
-    ) -> tuple[bool, discord.Role | None, discord.abc.GuildChannel | None]:
-        """
-        Validate jail role and channel existence and member condition.
-
-        Parameters
-        ----------
-        ctx : commands.Context[Tux]
-            The context of the command.
-        user : discord.Member
-            The member to jail.
-
-        Returns
-        -------
-        tuple
-            A tuple containing a boolean indicating success, the jail role, and the jail channel.
-        """
-
-        if not ctx.guild:
-            logger.warning("Jail command used outside of a guild context.")
-            return False, None, None
-
-        jail_role_id = await self.config.get_jail_role_id(ctx.guild.id)
-        jail_role = ctx.guild.get_role(jail_role_id) if jail_role_id else None
-        jail_channel_id = await self.config.get_jail_channel_id(ctx.guild.id)
-        jail_channel = ctx.guild.get_channel(jail_channel_id) if jail_channel_id else None
-
-        if jail_role is None:
-            await ctx.send("The jail role has been deleted or not set up.", delete_after=30, ephemeral=True)
-            return False, None, None
-        if jail_channel is None:
-            await ctx.send("The jail channel has been deleted or not set up.", delete_after=30, ephemeral=True)
-            return False, None, None
-        if jail_role in user.roles:
-            await ctx.send("The user is already jailed.", delete_after=30, ephemeral=True)
-            return False, None, None
-
-        return True, jail_role, jail_channel
 
     async def handle_case_response(
         self,
